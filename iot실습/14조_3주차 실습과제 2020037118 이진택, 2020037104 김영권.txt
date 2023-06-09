@@ -1,0 +1,43 @@
+#include "DSP2833x_Device.h" // DSP2833x Headerfile Include File
+#include "DSP2833x_Examples.h" // DSP2833x Examples Include File
+
+#define LED1_H GpioDataRegs.GPASET.bit.GPIO25 = 1
+#define LED1_L GpioDataRegs.GPACLEAR.bit.GPIO25 = 1
+#define LED2_H GpioDataRegs.GPASET.bit.GPIO24 = 1
+#define LED2_L GpioDataRegs.GPACLEAR.bit.GPIO24 = 1
+#define LED1_T GpioDataRegs.GPATOGGLE.bit.GPIO25 = 1
+#define LED2_T GpioDataRegs.GPATOGGLE.bit.GPIO24 = 1
+
+void Gpio_select(void);
+void main(){
+	InitSysCtrl(); //basic core initialization
+	DINT; //Disable all interrupts
+	Gpio_select();
+	LED1_L;
+	LED2_L;
+
+	Uint32 delay1 = 2000000;
+	Uint32 delay2 = 100000;
+
+	while(delay1 > 10000){
+
+		 LED1_H;
+		 DELAY_US(delay1);
+		 LED1_L;
+
+		 LED2_H;
+		 DELAY_US(delay2);
+		 LED2_L;
+
+		 delay1 -= 100000;
+		 delay2 += 100000;
+	}
+}
+void Gpio_select(void){
+	EALLOW;
+	GpioCtrlRegs.GPAMUX2.all = 0;
+
+	GpioCtrlRegs.GPADIR.bit.GPIO25 = 1;
+	GpioCtrlRegs.GPADIR.bit.GPIO24 = 1;
+	EDIS;
+}

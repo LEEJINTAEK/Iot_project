@@ -1,0 +1,265 @@
+#include "DSP2833x_Device.h"
+#include "DSP2833x_Examples.h"
+
+#define LED1_H GpioDataRegs.GPASET.bit.GPIO25 = 1
+#define LED2_H GpioDataRegs.GPASET.bit.GPIO24 = 1
+#define LED1_L GpioDataRegs.GPACLEAR.bit.GPIO25 = 1
+#define LED2_L GpioDataRegs.GPACLEAR.bit.GPIO24 = 1
+
+#define LCDD0_H   GpioDataRegs.GPBSET.bit.GPIO57 = 1
+#define LCDD1_H   GpioDataRegs.GPBSET.bit.GPIO56 = 1
+#define LCDD2_H   GpioDataRegs.GPBSET.bit.GPIO61 = 1
+#define LCDD3_H   GpioDataRegs.GPBSET.bit.GPIO60 = 1
+#define LCDE_H   GpioDataRegs.GPBSET.bit.GPIO55 = 1
+#define LCDRS_H   GpioDataRegs.GPBSET.bit.GPIO54 = 1
+#define LCDD0_L   GpioDataRegs.GPBCLEAR.bit.GPIO57 = 1
+#define LCDD1_L   GpioDataRegs.GPBCLEAR.bit.GPIO56 = 1
+#define LCDD2_L   GpioDataRegs.GPBCLEAR.bit.GPIO61 = 1
+#define LCDD3_L   GpioDataRegs.GPBCLEAR.bit.GPIO60 = 1
+#define LCDE_L   GpioDataRegs.GPBCLEAR.bit.GPIO55 = 1
+#define LCDRS_L   GpioDataRegs.GPBCLEAR.bit.GPIO54 = 1
+
+void Gpio_select(void);
+interrupt void XINT1_isr(void); // Interrupt routine
+interrupt void XINT2_isr(void); // Interrupt routine
+void lcd_write(char data, unsigned char Rs);
+void lcd_Gpio_data_out(unsigned char da);
+void lcdprint_data(char *str);
+void lcd_init(void);
+interrupt void cpu_timer0_isr(void);
+interrupt void cpu_timer1_isr(void);
+void start_timer(void);
+void stop_timer(void);
+
+char min1 = '0';
+char min2 = '0';
+char sec1 = '0';
+char sec2 = '0';
+
+interrupt void cpu_timer0_isr(void)
+{
+    DINT;
+
+    sec2++;
+
+    if (sec2 > '9') {
+        sec2 = '0';
+        sec1++;
+
+        if (sec1 > '5') {
+            sec1 = '0';
+            min2++;
+
+            if (min2 > '9') {
+                min2 = '0';
+                min1++;
+
+                if (min1 > '5') {
+                    min1 = '0';
+                }
+            }
+        }
+    }
+
+    display_LCD1s();
+
+    EINT;
+    PieCtrlRegs.PIEACK.all = PIEACK_GROUP1;
+}
+
+interrupt void cpu_timer1_isr(void)
+{
+    DINT;
+
+    // Add your code here for timer 1 interrupt, if needed
+
+    EINT;
+}
+
+void lcd_write(char data, unsigned char Rs)
+{
+    if (Rs)
+        LCDRS_H;
+    else
+        LCDRS_L;
+    lcd_Gpio_data_out((data >> 4) & 0x0f);
+    DELAY_US(1);
+    LCDE_H;
+    DELAY_US(1);
+    LCDE_L;
+    DELAY_US(1);
+
+    lcd_Gpio_data_out(data & 0x0f);
+    DELAY_US(1);
+    LCDE_H;
+    DELAY_US(1);
+    LCDE_L;
+    DELAY_US(41);
+}
+
+void lcd_Gpio_data_out(unsigned char da)
+{
+    if (da & 0x1)
+        LCDD0_H;
+    else
+        LCDD0_L;
+    if (da & 0x2)
+        LCDD1_H;
+    else
+        LCDD1_L;
+    if (da & 0x4)
+        LCDD2_H;
+    else
+        LCDD2_L;
+    if (da & 0x8)
+        LCDD3_H;
+    else
+        LCDD3_L;
+}
+
+void lcd_init(void)
+{
+    lcd_write(0x28, 0); // 4-bit data mode, 2 lines, 5x7 dot
+    lcd_write(0x28, 0); // 4-bit data mode, 2 lines, 5x7 dot
+    lcd_write(0x0C, 0); // display on
+    lcd_write(0x01, 0); // Display Clear
+    DELAY_US(1960);
+    lcd_write(0x06, 0); // Entry mode
+}
+
+void lcdprint_data(char *str)
+{
+    unsigned char i = 0;
+    while (str[i] != '\0')
+    {
+        lcd_write(str[i++], 1);
+    }
+}
+
+void display_LCD1s(void)
+{
+    lcd_write(0xC0, 0);
+    lcdprint_data("      ");
+    lcd_write(min1, 1);
+    lcd_write(min2, 1);
+    lcd_write(':', 1);
+    lcd_write(sec1, 1);
+    lcd_write(sec2, 1);
+    lcdprint_data("      ");
+}
+
+interrupt void XINT1_isr(void)
+{
+    DINT;
+    LED1_H;
+    LED2_H;
+
+    lcd_write(0x80, 0);
+    lcdprint_data("StopWatch Start");
+    lcd_write(0xC0, 0);
+    display_LCD1s();
+
+    start_timer();
+
+    EINT;
+    PieCtrlRegs.PIEACK.all = PIEACK_GROUP1;
+}
+
+interrupt void XINT2_isr(void)
+{
+    DINT;
+    LED1_L;
+    LED2_L;
+
+    lcd_write(0x01, 0);
+    stop_timer();
+
+    EINT;
+    PieCtrlRegs.PIEACK.all = PIEACK_GROUP1;
+}
+
+void Gpio_select(void)
+{
+    EALLOW;
+    GpioCtrlRegs.GPAMUX2.all = 0x0000;
+    GpioCtrlRegs.GPADIR.bit.GPIO25 = 1;
+    GpioCtrlRegs.GPADIR.bit.GPIO24 = 1;
+    GpioCtrlRegs.GPBDIR.bit.GPIO54 = 1;
+    GpioCtrlRegs.GPBDIR.bit.GPIO55 = 1;
+    GpioCtrlRegs.GPBDIR.bit.GPIO57 = 1;
+    GpioCtrlRegs.GPBDIR.bit.GPIO56 = 1;
+    GpioCtrlRegs.GPBDIR.bit.GPIO61 = 1;
+    GpioCtrlRegs.GPBDIR.bit.GPIO60 = 1;
+
+    EDIS;
+}
+
+void start_timer(void)
+{
+
+    CpuTimer0Regs.TCR.all = 0x4000;
+    CpuTimer0Regs.PRD.all = 150000000;
+    CpuTimer0Regs.TCR.bit.TSS = 0;
+    CpuTimer0Regs.TCR.bit.TRB = 1;
+
+
+    IER |= M_INT1;
+    PieCtrlRegs.PIEIER1.bit.INTx7 = 1;
+
+    PieCtrlRegs.PIEACK.all = PIEACK_GROUP1;
+}
+
+void stop_timer(void)
+{
+
+    IER &= ~M_INT1;
+    PieCtrlRegs.PIEIER1.bit.INTx7 = 0;
+
+
+    CpuTimer0Regs.TCR.all = 0x0000;
+    CpuTimer0Regs.TCR.bit.TRB = 1;
+
+
+    PieCtrlRegs.PIEACK.all = PIEACK_GROUP1;
+}
+
+void main(void)
+{
+    InitSysCtrl();
+    Gpio_select();
+    DINT;
+    InitPieCtrl();
+    lcd_init();
+    IER = 0x0000;
+    IFR = 0x0000;
+    InitPieVectTable();
+
+    EALLOW;
+    PieVectTable.XINT1 = &XINT1_isr;
+    PieVectTable.XINT2 = &XINT2_isr;
+    GpioCtrlRegs.GPAMUX2.bit.GPIO26 = 0;
+    GpioCtrlRegs.GPAMUX2.bit.GPIO27 = 0;
+    GpioCtrlRegs.GPADIR.bit.GPIO26 = 0;
+    GpioCtrlRegs.GPADIR.bit.GPIO27 = 0;
+    GpioIntRegs.GPIOXINT1SEL.bit.GPIOSEL = 27;
+    GpioIntRegs.GPIOXINT2SEL.bit.GPIOSEL = 26;
+    PieVectTable.TINT0 = &cpu_timer0_isr;
+    PieVectTable.XINT13 = &cpu_timer1_isr;
+    EDIS;
+
+    XIntruptRegs.XINT1CR.bit.POLARITY = 0;
+    XIntruptRegs.XINT2CR.bit.POLARITY = 0;
+    XIntruptRegs.XINT1CR.bit.ENABLE = 1;
+    XIntruptRegs.XINT2CR.bit.ENABLE = 1;
+
+    PieCtrlRegs.PIECTRL.bit.ENPIE = 1;
+    PieCtrlRegs.PIEIER1.bit.INTx4 = 1;
+    PieCtrlRegs.PIEIER1.bit.INTx5 = 1;
+    PieCtrlRegs.PIEIER1.bit.INTx7 = 1;
+    IER |= M_INT1 | M_INT13;
+
+    EINT;
+    LED1_L;
+    LED2_L;
+    for (;;);
+}

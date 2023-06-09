@@ -1,0 +1,53 @@
+#include "DSP2833x_Device.h" // DSP2833x Headerfile Include File
+#include "DSP2833x_Examples.h" // DSP2833x Examples Include File
+
+#define LED1_H GpioDataRegs.GPASET.bit.GPIO25 = 1
+#define LED1_L GpioDataRegs.GPACLEAR.bit.GPIO25 = 1
+#define LED1_T GpioDataRegs.GPATOGGLE.bit.GPIO25 = 1
+#define LED2_H GpioDataRegs.GPASET.bit.GPIO24 = 1
+#define LED2_L GpioDataRegs.GPACLEAR.bit.GPIO24 = 1
+#define LED2_T GpioDataRegs.GPATOGGLE.bit.GPIO24 = 1
+#define DIP1 GpioDataRegs.GPBDAT.bit.GPIO48
+#define DIP2 GpioDataRegs.GPBDAT.bit.GPIO49
+
+void Gpio_select(void);
+
+void main()
+{
+	InitSysCtrl(); //basic core initialization
+	DINT; //Disable all interrupts
+	Gpio_select();
+	for(;;)
+	{
+		if(DIP1 && DIP2){
+			  LED1_H;
+			  LED2_H;
+		}
+		else if(DIP1 && !DIP2){
+			LED1_T;
+			LED2_L;
+		}
+		else if(!DIP1 && DIP2){
+			LED2_T;
+			LED1_L;
+		}
+		else{
+				LED1_L;
+				LED2_L;
+			}
+		DELAY_US(100000);
+	}
+}
+void Gpio_select(void)
+{
+	EALLOW;
+	GpioCtrlRegs.GPBPUD.bit.GPIO48 = 0;
+	GpioCtrlRegs.GPBPUD.bit.GPIO49 = 0;
+	GpioCtrlRegs.GPAMUX2.all = 0;
+	GpioCtrlRegs.GPBMUX2.all = 0;
+	GpioCtrlRegs.GPADIR.bit.GPIO25 = 1;
+	GpioCtrlRegs.GPADIR.bit.GPIO24 = 1;
+	GpioCtrlRegs.GPBDIR.bit.GPIO48 = 0;
+	GpioCtrlRegs.GPBDIR.bit.GPIO49 = 0;
+	EDIS;
+}

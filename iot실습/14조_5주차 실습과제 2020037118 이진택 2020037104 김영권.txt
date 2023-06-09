@@ -1,0 +1,87 @@
+#include "DSP2833x_Device.h" // DSP2833x Headerfile Include File
+#include "DSP2833x_Examples.h" // DSP2833x Examples Include File
+
+
+#define LED1_H GpioDataRegs.GPASET.bit.GPIO25 = 1
+#define LED1_L GpioDataRegs.GPACLEAR.bit.GPIO25 = 1
+#define LED1_T GpioDataRegs.GPATOGGLE.bit.GPIO25 = 1
+#define LED2_H GpioDataRegs.GPASET.bit.GPIO24 = 1
+#define LED2_L GpioDataRegs.GPACLEAR.bit.GPIO24 = 1
+#define LED2_T GpioDataRegs.GPATOGGLE.bit.GPIO24 = 1
+#define DIP1 GpioDataRegs.GPBDAT.bit.GPIO48
+#define DIP2 GpioDataRegs.GPBDAT.bit.GPIO49
+
+void Gpio_select(void);
+
+void Gpio_Fnd_out(unsigned char da);
+
+void main(){
+	unsigned char counter = 0;
+	InitSysCtrl(); //basic core initialization
+	DINT; //Disable all interrupts
+	Gpio_select();
+	int flag = 0;
+	int count = 0;
+	for(;;){
+		Gpio_Fnd_out(counter);
+		DELAY_US(100000);
+		if(count == 2){
+			LED1_L;
+			LED2_L;
+			break;
+			}
+
+		if(flag==0){
+			counter++;
+			if(counter >= 9){
+				flag++;
+				counter = 9;
+			}
+
+		}
+		else if(flag!=0){
+			counter--;
+		}
+
+		if(counter == 0){
+			counter = 0;
+			flag = 0;
+			 LED1_H;
+			 LED2_H;
+			 count++;
+		}
+		else{
+			DELAY_US(1000000);
+			LED1_L;
+			LED2_L;
+		}
+
+
+	}
+}
+void Gpio_Fnd_out(unsigned char da){
+	if(da & 0x01) GpioDataRegs.GPBSET.bit.GPIO50 = 1;
+	else GpioDataRegs.GPBCLEAR.bit.GPIO50 = 1;
+	if(da & 0x02) GpioDataRegs.GPBSET.bit.GPIO51 = 1;
+	else GpioDataRegs.GPBCLEAR.bit.GPIO51 = 1;
+	if(da & 0x04) GpioDataRegs.GPBSET.bit.GPIO52 = 1;
+	else GpioDataRegs.GPBCLEAR.bit.GPIO52 = 1;
+	if(da & 0x08) GpioDataRegs.GPBSET.bit.GPIO53 = 1;
+	else GpioDataRegs.GPBCLEAR.bit.GPIO53 = 1;
+}
+void Gpio_select(void){
+	EALLOW;
+	GpioCtrlRegs.GPBMUX2.all = 0;
+	GpioCtrlRegs.GPBPUD.bit.GPIO48 = 0;
+	GpioCtrlRegs.GPBPUD.bit.GPIO49 = 0;
+	GpioCtrlRegs.GPAMUX2.all = 0;
+	GpioCtrlRegs.GPADIR.bit.GPIO25 = 1;
+	GpioCtrlRegs.GPADIR.bit.GPIO24 = 1;
+	GpioCtrlRegs.GPBDIR.bit.GPIO48 = 0;
+	GpioCtrlRegs.GPBDIR.bit.GPIO49 = 0;
+	GpioCtrlRegs.GPBDIR.bit.GPIO50 = 1;
+	GpioCtrlRegs.GPBDIR.bit.GPIO51 = 1;
+	GpioCtrlRegs.GPBDIR.bit.GPIO52 = 1;
+	GpioCtrlRegs.GPBDIR.bit.GPIO53 = 1;
+	EDIS;
+}
